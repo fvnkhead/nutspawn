@@ -58,26 +58,31 @@ void function Spawn_Init()
 
 void function InitSpawnpoint( entity spawnpoint ) 
 {
+    slog("[InitSpawnpoint] spawnpoint = " + spawnpoint.GetOrigin())
 	spawnpoint.s.lastUsedTime <- -999
 }
 
 void function SetRespawnsEnabled( bool enabled )
 {
+    slog("[SetRespawnsEnabled] enabled = " + enabled)
 	file.respawnsEnabled = enabled
 }
 
 bool function RespawnsEnabled()
 {
+    slog("[RespawnsEnabled] file.respawnsEnabled = " + file.respawnsEnabled)
 	return file.respawnsEnabled
 }
 
 void function AddSpawnpointValidationRule( bool functionref( entity spawn, int team ) rule )
 {
+    slog("[AddSpawnpointValidationRule]")
 	file.customSpawnpointValidationRules.append( rule )
 } 
 
 string function CreateNoSpawnArea( int blockSpecificTeam, int blockEnemiesOfTeam, vector position, float lifetime, float radius )
 {
+    slog("[CreateNoSpawnArea]")
 	NoSpawnArea noSpawnArea
 	noSpawnArea.blockedTeam = blockSpecificTeam
 	noSpawnArea.blockOtherTeams = blockEnemiesOfTeam
@@ -95,23 +100,27 @@ string function CreateNoSpawnArea( int blockSpecificTeam, int blockEnemiesOfTeam
 
 void function NoSpawnAreaLifetime( NoSpawnArea noSpawnArea )
 {
+    slog("[NoSpawnAreaLifetime]")
 	wait noSpawnArea.lifetime
 	DeleteNoSpawnArea( noSpawnArea.id )
 }
 
 void function DeleteNoSpawnArea( string noSpawnIdx )
 {
+    slog("[DeleteNoSpawnArea]")
 	if ( noSpawnIdx in file.noSpawnAreas )
 		delete file.noSpawnAreas[ noSpawnIdx ]
 }
 
 void function SetSpawnpointGamemodeOverride( string gamemode )
 {
+    slog("[SetSpawnpointGamemodeOverride] gamemode = " + gamemode)
 	file.spawnpointGamemodeOverride = gamemode
 }
 
 string function GetSpawnpointGamemodeOverride()
 {
+    slog("[GetSpawnpointGamemodeOverride]")
 	if ( file.spawnpointGamemodeOverride != "" )
 		return file.spawnpointGamemodeOverride
 	else
@@ -122,13 +131,17 @@ string function GetSpawnpointGamemodeOverride()
 
 void function InitRatings( entity player, int team )
 {
+    slog("[InitRatings] player = " + player.GetPlayerName() + ", team = " + team)
 	if ( player != null )
 		SpawnPoints_InitRatings( player, team ) // no idea what the second arg supposed to be lol
 }
 
 entity function FindSpawnPoint( entity player, bool isTitan, bool useStartSpawnpoint )
 {
+    slog("-----BEGIN SPAWN DEBUG-----")
 	int team = player.GetTeam()
+    slog("[FindSpawnPoint] player = " + player.GetPlayerName())
+    slog("[FindSpawnPoint] team = " + team)
 	if ( HasSwitchedSides() )
 		team = GetOtherTeam( team )
 
@@ -171,23 +184,31 @@ entity function FindSpawnPoint( entity player, bool isTitan, bool useStartSpawnp
 	spawnpoint.s.lastUsedTime = Time()
 	player.SetLastSpawnPoint( spawnpoint )
 		
+    slog("-----END SPAWN DEBUG-----")
 	return spawnpoint
 }
 
 entity function GetBestSpawnpoint( entity player, array<entity> spawnpoints )
 {
+    slog("[GetBestSpawnpoint] player = " + player.GetPlayerName())
+    slog("[GetBestSpawnpoint] spawnpoints.len() = " + spawnpoints.len())
+
 	// not really 100% sure on this randomisation, needs some thought
 	array<entity> validSpawns
+    int checkedSpawns = 0
 	foreach ( entity spawnpoint in spawnpoints )
 	{
+        checkedSpawns += 1
 		if ( IsSpawnpointValid( spawnpoint, player.GetTeam() ) )
 		{
 			validSpawns.append( spawnpoint )
-			
 			if ( validSpawns.len() == 3 ) // arbitrary small sample size
 				break
 		}
 	}
+
+    slog("[GetBestSpawnpoint] validSpawns.len() = " + validSpawns.len())
+    slog("[GetBestSpawnpoint] checkedSpawns = " + checkedSpawns)
 	
 	if ( validSpawns.len() == 0 )
 	{
@@ -220,6 +241,8 @@ entity function GetBestSpawnpoint( entity player, array<entity> spawnpoints )
 
 bool function IsSpawnpointValid( entity spawnpoint, int team )
 {
+    //slog("[IsSpawnpointValid] spawnpoint = " + spawnpoint.GetOrigin() + ", team = " + team)
+
 	if ( !spawnpoint.HasKey( "ignoreGamemode" ) || ( spawnpoint.HasKey( "ignoreGamemode" ) && spawnpoint.kv.ignoreGamemode == "0" ) ) // used by script-spawned spawnpoints
 	{
 		if ( file.spawnpointGamemodeOverride != "" )
@@ -280,6 +303,10 @@ struct {
 
 void function RateSpawnpoints_Generic( int checkClass, array<entity> spawnpoints, int team, entity player )
 {	
+    slog("[RateSpawnpoints_Generic] spawnpoints.len() = " + spawnpoints.len())
+    slog("[RateSpawnpoints_Generic] player = " + player.GetPlayerName())
+    slog("[RateSpawnpoints_Generic] team = " + team)
+
 	if ( !IsFFAGame() )
 	{
 		// use frontline spawns in 2-team modes
@@ -378,6 +405,8 @@ void function RateSpawnpoints_Generic( int checkClass, array<entity> spawnpoints
 
 void function InitPreferSpawnNodes()
 {
+    slog("[InitPreferSpawnNodes]")
+
 	foreach ( entity hardpoint in GetEntArrayByClass_Expensive( "info_hardpoint" ) )
 	{
 		if ( !hardpoint.HasKey( "hardpointGroup" ) )
@@ -386,6 +415,7 @@ void function InitPreferSpawnNodes()
 		if ( hardpoint.kv.hardpointGroup != "A" && hardpoint.kv.hardpointGroup != "B" && hardpoint.kv.hardpointGroup != "C" )
 			continue
 			
+        slog("[InitPreferSpawnNodes] hardpoint = " + hardpoint.GetOrigin())
 		spawnStateGeneric.preferSpawnNodes.append( hardpoint.GetOrigin() )
 	}
 	
@@ -396,6 +426,7 @@ void function InitPreferSpawnNodes()
 // frontline
 void function RateSpawnpoints_Frontline( int checkClass, array<entity> spawnpoints, int team, entity player )
 {
+    slog("[RateSpawnpoints_Frontline]")
 	foreach ( entity spawnpoint in spawnpoints )
 	{
 		float rating = spawnpoint.CalculateFrontlineRating()
@@ -416,6 +447,7 @@ struct {
 
 void function ResetSpawnzones()
 {
+    slog("[ResetSpawnzones]")
 	spawnStateSpawnzones.activeTeamSpawnzones.clear()
 	
 	foreach ( int team, entity minimapEnt in spawnStateSpawnzones.activeTeamSpawnzoneMinimapEnts )
@@ -427,22 +459,28 @@ void function ResetSpawnzones()
 
 void function AddSpawnZoneTrigger( entity trigger )
 {
+    slog("[AddSpawnZoneTrigger]")
 	trigger.s.spawnzoneRating <- 0.0
 	spawnStateSpawnzones.mapSpawnzoneTriggers.append( trigger )
 }
 
 void function SetSpawnZoneRatingFunc( entity functionref( array<entity>, int ) ratingFunc )
 {
+    slog("[SetSpawnZoneRatingFunc]")
 	spawnStateSpawnzones.spawnzoneRatingFunc = ratingFunc
 }
 
 void function SetShouldCreateMinimapSpawnZones( bool shouldCreateMinimapSpawnzones )
 {
+    slog("[SetShouldCreateMinimapSpawnZones] bool = " + shouldCreateMinimapSpawnzones)
 	spawnStateSpawnzones.shouldCreateMinimapSpawnzones = shouldCreateMinimapSpawnzones
 }
 
 entity function CreateTeamSpawnZoneEntity( entity spawnzone, int team )
 {
+    slog("[CreateTeamSpawnZoneEntity] spawnzone = " + spawnzone.GetOrigin())
+    slog("[CreateTeamSpawnZoneEntity] team = " + team)
+
 	entity minimapObj = CreatePropScript( $"models/dev/empty_model.mdl", spawnzone.GetOrigin() )
 	SetTeam( minimapObj, team )	
 	minimapObj.Minimap_SetObjectScale( 100.0 / Distance2D( < 0, 0, 0 >, spawnzone.GetBoundingMaxs() ) )
@@ -463,6 +501,10 @@ entity function CreateTeamSpawnZoneEntity( entity spawnzone, int team )
 
 void function RateSpawnpoints_SpawnZones( int checkClass, array<entity> spawnpoints, int team, entity player )
 {
+    slog("[RateSpawnpoints_SpawnZones] spawnpoints.len() = " + spawnpoints.len())
+    slog("[RateSpawnpoints_SpawnZones] team = " + team)
+    slog("[RateSpawnpoints_SpawnZones] player = " + player.GetPlayerName())
+
 	if ( spawnStateSpawnzones.spawnzoneRatingFunc == null )
 		spawnStateSpawnzones.spawnzoneRatingFunc = DecideSpawnZone_Generic
 
@@ -496,6 +538,9 @@ void function RateSpawnpoints_SpawnZones( int checkClass, array<entity> spawnpoi
 
 entity function DecideSpawnZone_Generic( array<entity> spawnzones, int team )
 {
+    slog("[DecideSpawnZone_Generic] spawnzones.len() = " + spawnzones.len())
+    slog("[DecideSpawnZone_Generic] team = " + team)
+
 	if ( spawnzones.len() == 0 )
 		return null
 	
@@ -550,6 +595,8 @@ entity function DecideSpawnZone_Generic( array<entity> spawnzones, int team )
 		if ( float( numDeadInZone ) / teamPlayers.len() <= 0.1 )
 			needNewZone = false
 	}
+
+    slog("[DecideSpawnZone_Generic] needNewZone = " + needNewZone)
 	
 	if ( needNewZone )
 	{
@@ -621,6 +668,9 @@ entity function DecideSpawnZone_Generic( array<entity> spawnzones, int team )
 			
 			return 0
 		} )
+
+        slog("[DecideSpawnZone_Generic] possibleZones.len() = " + possibleZones.len())
+
 		entity chosenZone = possibleZones[ minint( RandomInt( 3 ), possibleZones.len() - 1 ) ]
 		
 		if ( spawnStateSpawnzones.shouldCreateMinimapSpawnzones )
@@ -643,6 +693,9 @@ entity function DecideSpawnZone_Generic( array<entity> spawnzones, int team )
 // ideally this should be in the gamemode_ctf file, but would need refactors to expose more stuff that's not available there rn 
 entity function DecideSpawnZone_CTF( array<entity> spawnzones, int team )
 {
+    slog("[DecideSpawnZone_CTF] spawnzones.len() = " + spawnzones.len())
+    slog("[DecideSpawnZone_CTF] team = " + team)
+
 	if ( spawnzones.len() == 0 )
 		return null
 	
@@ -742,10 +795,14 @@ entity function DecideSpawnZone_CTF( array<entity> spawnzones, int team )
 		
 		spawnzone.s.spawnzoneRating = rating
 		possibleZones.append( spawnzone )
+
+        slog("[DecideSpawnZone_CTF] possibleZone.rating = " + rating)
 	}
 	
-	if ( possibleZones.len() == 0 )
+	if ( possibleZones.len() == 0 ) {
+        slog("[DecideSpawnZone_CTF] possibleZones.len() == 0")
 		return null
+    }
 	
 	possibleZones.sort( int function( entity a, entity b ) 
 	{
@@ -773,4 +830,8 @@ entity function DecideSpawnZone_CTF( array<entity> spawnzones, int team )
 	spawnStateSpawnzones.activeTeamSpawnzones[ team ] <- chosenZone
 	
 	return spawnStateSpawnzones.activeTeamSpawnzones[ team ]
+}
+
+void function slog(string s) {
+    print("[spawn.nut] " + s)
 }

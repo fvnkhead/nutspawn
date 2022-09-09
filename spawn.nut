@@ -814,7 +814,10 @@ entity function DecideSpawnZone_CTF( array<entity> spawnzones, int team )
 		
 		return 0
 	} )
-	entity chosenZone = possibleZones[ minint( RandomInt( 3 ), possibleZones.len() - 1 ) ]
+    // fvnkhead: just choose the best zone for more consistency and team grouping
+    entity chosenZone = possibleZones[0] 
+	//entity chosenZone = possibleZones[ minint( RandomInt( 3 ), possibleZones.len() - 1 ) ]
+    slog("[DecideSpawnZone_CTF] chosenZone.rating = " + chosenZone.s.spawnzoneRating)
 	
 	if ( spawnStateSpawnzones.shouldCreateMinimapSpawnzones )
 	{

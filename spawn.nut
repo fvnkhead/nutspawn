@@ -284,9 +284,16 @@ bool function IsSpawnpointValid( entity spawnpoint, int team )
 			return false
 	}
 
-	array<entity> projectiles = GetProjectileArrayEx( "any", TEAM_ANY, TEAM_ANY, spawnpoint.GetOrigin(), 600 )
+    float minEnemyDist = 2000.0 // fvnkhead: about 20 meters?
+	array<entity> projectiles = GetProjectileArrayEx( "any", TEAM_ANY, TEAM_ANY, spawnpoint.GetOrigin(), minEnemyDist )
 	foreach ( entity projectile in projectiles )
 		if ( projectile.GetTeam() != team )
+			return false
+
+    // fvnkhead: also check for players in spawn vicinity
+	array<entity> players = GetPlayerArrayEx( "any", TEAM_ANY, TEAM_ANY, spawnpoint.GetOrigin(), minEnemyDist )
+	foreach ( entity player in players )
+		if ( player.GetTeam() != team )
 			return false
 	
 	// los check

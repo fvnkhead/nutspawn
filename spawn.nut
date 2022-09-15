@@ -188,8 +188,93 @@ entity function FindSpawnPoint( entity player, bool isTitan, bool useStartSpawnp
 	return spawnpoint
 }
 
+// fvnkhead: need this since apparently closures don't have access to local variables at upper scope
+struct SortEntry
+{
+    entity spawnpoint
+    float score
+}
+
+int function SortEntriesSorted(SortEntry a, SortEntry b)
+{
+    if (a.score > b.score) {
+        return -1
+    } else if (b.score > a.score) {
+        return 1
+    }
+
+    return 0
+}
+
+vector function AverageOrigin(array<entity> ents)
+{
+    vector averageOrigin = <0, 0, 0>
+    foreach (entity ent in ents) {
+        averageOrigin += ent.GetOrigin()
+    }
+    averageOrigin /= ents.len()
+
+    return averageOrigin
+}
+
+array<entity> function SortSpawnpointsByTeamDistance(entity player, array<entity> spawnpoints)
+{
+    if (spawnpoints.len() == 0) {
+        return spawnpoints
+    }
+
+    int friendlyTeam = player.GetTeam()
+    int enemyTeam = GetOtherTeam(friendlyTeam)
+
+    array<entity> friends = GetPlayerArrayOfTeam_Alive(friendlyTeam)
+    array<entity> enemies = GetPlayerArrayOfTeam_Alive(enemyTeam)
+
+    if (friends.len() == 0 || enemies.len() == 0) {
+        return spawnpoints
+    }
+
+    vector averageFriendPos = AverageOrigin(friends)
+    vector averageEnemyPos = AverageOrigin(enemies)
+
+    slog("[SortSpawnpointsByTeamDistance] averageFriendPos = " + averageFriendPos)
+    slog("[SortSpawnpointsByTeamDistance] averageEnemyPos = " + averageEnemyPos)
+
+    array<SortEntry> sortEntries = []
+    foreach (entity spawnpoint in spawnpoints) {
+        float enemyDistance = Distance2D(spawnpoint.GetOrigin(), averageEnemyPos)
+        float friendDistance = Distance2D(spawnpoint.GetOrigin(), averageFriendPos)
+        float score = enemyDistance - friendDistance
+
+        SortEntry se
+        se.spawnpoint = spawnpoint
+        se.score = score
+        sortEntries.append(se)
+    }
+
+    sortEntries.sort(SortEntriesSorted)
+
+    spawnpoints = []
+    foreach (SortEntry se in sortEntries) {
+        spawnpoints.append(se.spawnpoint)
+    }
+
+    entity bestSpawnpoint = spawnpoints[0]
+    float bestEnemyDistance = Distance2D(bestSpawnpoint.GetOrigin(), averageEnemyPos)
+    float bestFriendDistance = Distance2D(bestSpawnpoint.GetOrigin(), averageFriendPos)
+    float bestScore = bestEnemyDistance - bestFriendDistance
+    slog("[SortSpawnpointsByTeamDistance] bestEnemyDistance = " + bestEnemyDistance)
+    slog("[SortSpawnpointsByTeamDistance] bestFriendDistance = " + bestFriendDistance)
+    slog("[SortSpawnpointsByTeamDistance] bestScore = " + bestScore)
+
+    return spawnpoints
+}
+
 entity function GetBestSpawnpoint( entity player, array<entity> spawnpoints )
 {
+    if (!IsFFAGame()) {
+        spawnpoints = SortSpawnpointsByTeamDistance(player, spawnpoints)
+    }
+
     slog("[GetBestSpawnpoint] player = " + player.GetPlayerName())
     slog("[GetBestSpawnpoint] spawnpoints.len() = " + spawnpoints.len())
 
@@ -806,8 +891,8 @@ entity function DecideSpawnZone_CTF( array<entity> spawnzones, int team )
         slog("[DecideSpawnZone_CTF] possibleZone.rating = " + rating)
 	}
 	
+    slog("[DecideSpawnZone_CTF] possibleZones.len() = " + possibleZones.len())
 	if ( possibleZones.len() == 0 ) {
-        slog("[DecideSpawnZone_CTF] possibleZones.len() == 0")
 		return null
     }
 	
@@ -822,8 +907,11 @@ entity function DecideSpawnZone_CTF( array<entity> spawnzones, int team )
 		return 0
 	} )
     // fvnkhead: just choose the best zone for more consistency and team grouping
-    entity chosenZone = possibleZones[0] 
+    //entity chosenZone = possibleZones[0] 
+    int idx = RandomInt(possibleZones.len())
+	entity chosenZone = possibleZones[idx]
 	//entity chosenZone = possibleZones[ minint( RandomInt( 3 ), possibleZones.len() - 1 ) ]
+    slog("[DecideSpawnZone_CTF] chosenZone.idx = " + idx)
     slog("[DecideSpawnZone_CTF] chosenZone.rating = " + chosenZone.s.spawnzoneRating)
 	
 	if ( spawnStateSpawnzones.shouldCreateMinimapSpawnzones )

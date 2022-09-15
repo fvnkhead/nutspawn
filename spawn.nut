@@ -269,7 +269,7 @@ bool function IsSpawnpointValid( entity spawnpoint, int team )
 	if ( spawnpoint.IsOccupied() )
 		return false
 		
-	if ( Time() - spawnpoint.s.lastUsedTime <= 10.0 )
+	if ( Time() - spawnpoint.s.lastUsedTime <= 5.0 )
 		return false
 		
 	foreach ( k, NoSpawnArea noSpawnArea in file.noSpawnAreas )

@@ -217,13 +217,13 @@ vector function AverageOrigin(array<entity> ents)
     return averageOrigin
 }
 
-array<entity> function SortSpawnpointsByTeamDistance(entity player, array<entity> spawnpoints)
+array<entity> function SortSpawnpointsByTeamDistance(int team, array<entity> spawnpoints)
 {
     if (spawnpoints.len() == 0) {
         return spawnpoints
     }
 
-    int friendlyTeam = player.GetTeam()
+    int friendlyTeam = team
     int enemyTeam = GetOtherTeam(friendlyTeam)
 
     array<entity> friends = GetPlayerArrayOfTeam_Alive(friendlyTeam)
@@ -272,7 +272,7 @@ array<entity> function SortSpawnpointsByTeamDistance(entity player, array<entity
 entity function GetBestSpawnpoint( entity player, array<entity> spawnpoints )
 {
     if (!IsFFAGame()) {
-        spawnpoints = SortSpawnpointsByTeamDistance(player, spawnpoints)
+        spawnpoints = SortSpawnpointsByTeamDistance(player.GetTeam(), spawnpoints)
     }
 
     slog("[GetBestSpawnpoint] player = " + player.GetPlayerName())
@@ -745,11 +745,13 @@ entity function DecideSpawnZone_Generic( array<entity> spawnzones, int team )
 			
 			spawnzone.s.spawnzoneRating = rating
 			possibleZones.append( spawnzone )
+            slog("[DecideSpawnZone_Generic] possibleZone.rating = " + rating)
 		}
 		
 		if ( possibleZones.len() == 0 )
 			return null
 		
+        slog("[DecideSpawnZone_Generic] possibleZones.len() = " + possibleZones.len())
 		possibleZones.sort( int function( entity a, entity b ) 
 		{
 			if ( a.s.spawnzoneRating > b.s.spawnzoneRating )

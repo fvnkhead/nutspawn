@@ -224,26 +224,18 @@ array<entity> function SortSpawnpointsByTeamDistance(int team, array<entity> spa
     }
 
     int friendlyTeam = team
-    int enemyTeam = GetOtherTeam(friendlyTeam)
-
     array<entity> friends = GetPlayerArrayOfTeam_Alive(friendlyTeam)
-    array<entity> enemies = GetPlayerArrayOfTeam_Alive(enemyTeam)
-
-    if (friends.len() == 0 || enemies.len() == 0) {
+    if (friends.len() == 0) {
         return spawnpoints
     }
 
     vector averageFriendPos = AverageOrigin(friends)
-    vector averageEnemyPos = AverageOrigin(enemies)
-
     slog("[SortSpawnpointsByTeamDistance] averageFriendPos = " + averageFriendPos)
-    slog("[SortSpawnpointsByTeamDistance] averageEnemyPos = " + averageEnemyPos)
 
     array<SortEntry> sortEntries = []
     foreach (entity spawnpoint in spawnpoints) {
-        float enemyDistance = Distance2D(spawnpoint.GetOrigin(), averageEnemyPos)
         float friendDistance = Distance2D(spawnpoint.GetOrigin(), averageFriendPos)
-        float score = enemyDistance - friendDistance
+        float score = 0 - friendDistance
 
         SortEntry se
         se.spawnpoint = spawnpoint
@@ -259,10 +251,8 @@ array<entity> function SortSpawnpointsByTeamDistance(int team, array<entity> spa
     }
 
     entity bestSpawnpoint = spawnpoints[0]
-    float bestEnemyDistance = Distance2D(bestSpawnpoint.GetOrigin(), averageEnemyPos)
     float bestFriendDistance = Distance2D(bestSpawnpoint.GetOrigin(), averageFriendPos)
-    float bestScore = bestEnemyDistance - bestFriendDistance
-    slog("[SortSpawnpointsByTeamDistance] bestEnemyDistance = " + bestEnemyDistance)
+    float bestScore = 0 - bestFriendDistance
     slog("[SortSpawnpointsByTeamDistance] bestFriendDistance = " + bestFriendDistance)
     slog("[SortSpawnpointsByTeamDistance] bestScore = " + bestScore)
 
@@ -271,13 +261,10 @@ array<entity> function SortSpawnpointsByTeamDistance(int team, array<entity> spa
 
 entity function GetBestSpawnpoint( entity player, array<entity> spawnpoints )
 {
-    if (!IsFFAGame()) {
-        spawnpoints = SortSpawnpointsByTeamDistance(player.GetTeam(), spawnpoints)
-    }
-
     slog("[GetBestSpawnpoint] player = " + player.GetPlayerName())
     slog("[GetBestSpawnpoint] spawnpoints.len() = " + spawnpoints.len())
 
+    int sampleSize = 5
 	// not really 100% sure on this randomisation, needs some thought
 	array<entity> validSpawns
     int checkedSpawns = 0
@@ -287,7 +274,7 @@ entity function GetBestSpawnpoint( entity player, array<entity> spawnpoints )
 		if ( IsSpawnpointValid( spawnpoint, player.GetTeam() ) )
 		{
 			validSpawns.append( spawnpoint )
-			if ( validSpawns.len() == 3 ) // arbitrary small sample size
+			if ( validSpawns.len() == sampleSize ) // arbitrary small sample size
 				break
 		}
 	}
@@ -303,10 +290,14 @@ entity function GetBestSpawnpoint( entity player, array<entity> spawnpoints )
 		{
 			validSpawns.append( spawnpoint )
 			
-			if ( validSpawns.len() == 3 ) // arbitrary small sample size
+			if ( validSpawns.len() == sampleSize ) // arbitrary small sample size
 				break
 		}
 	}
+
+    if (!IsFFAGame()) {
+        validSpawns = SortSpawnpointsByTeamDistance(player.GetTeam(), validSpawns)
+    }
 	
 	// last resort
 	if ( validSpawns.len() == 0 )
@@ -321,7 +312,8 @@ entity function GetBestSpawnpoint( entity player, array<entity> spawnpoints )
 		}
 	}
 	
-	return validSpawns[ RandomInt( validSpawns.len() ) ] // slightly randomize it
+	return validSpawns[0] // fvnkhead: return the spawn closest to team
+	//return validSpawns[ RandomInt( validSpawns.len() ) ] // slightly randomize it
 }
 
 bool function IsSpawnpointValid( entity spawnpoint, int team )
@@ -933,5 +925,8 @@ entity function DecideSpawnZone_CTF( array<entity> spawnzones, int team )
 }
 
 void function slog(string s) {
-    print("[spawn.nut] " + s)
+    bool debug = true
+    if (debug) {
+        print("[spawn.nut] " + s)
+    }
 }

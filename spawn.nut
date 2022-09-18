@@ -925,7 +925,7 @@ entity function DecideSpawnZone_CTF( array<entity> spawnzones, int team )
 }
 
 void function slog(string s) {
-    bool debug = true
+    bool debug = false
     if (debug) {
         print("[spawn.nut] " + s)
     }

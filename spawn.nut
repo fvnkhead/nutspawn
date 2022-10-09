@@ -41,8 +41,21 @@ struct {
 	table<string, NoSpawnArea> noSpawnAreas
 } file
 
+struct {
+    bool enabled = true // todo: convar
+    array<entity> spawnpoints = []
+    array<entity> playerRing = []
+} ringspawn
+
 void function Spawn_Init()
 {	
+    slog("[Spawn_Init]")
+
+    if ( ringspawn.enabled ) {
+        AddCallback_OnPlayerRespawned( RingSpawn_AddPlayerToRing )
+        AddCallback_OnClientDisconnected( RingSpawn_RemovePlayerFromRing )
+    }
+
 	AddSpawnCallback( "info_spawnpoint_human", InitSpawnpoint )
 	AddSpawnCallback( "info_spawnpoint_human_start", InitSpawnpoint )
 	AddSpawnCallback( "info_spawnpoint_titan", InitSpawnpoint )
@@ -60,6 +73,7 @@ void function InitSpawnpoint( entity spawnpoint )
 {
     slog("[InitSpawnpoint] spawnpoint = " + spawnpoint.GetOrigin())
 	spawnpoint.s.lastUsedTime <- -999
+    ringspawn.spawnpoints.append(spawnpoint)
 }
 
 void function SetRespawnsEnabled( bool enabled )
@@ -136,9 +150,149 @@ void function InitRatings( entity player, int team )
 		SpawnPoints_InitRatings( player, team ) // no idea what the second arg supposed to be lol
 }
 
+void function RingSpawn_PrintRing() {
+    foreach ( entity player in ringspawn.playerRing ) {
+        int team = player.GetTeam()
+        string alive = IsAlive(player) ? "alive" : "dead"
+        string msg = format("[RingSpawn_PrintRing] %s (team=%d) (%s)", player.GetPlayerName(), team, alive)
+        slog(msg)
+    }
+}
+
+void function RingSpawn_AddPlayerToRing( entity player ) {
+    slog("[RingSpawn_AddPlayerToRing] " + player.GetPlayerName())
+
+    if ( ringspawn.playerRing.contains( player ) ) {
+        ringspawn.playerRing.remove( ringspawn.playerRing.find( player ) )
+    }
+
+    ringspawn.playerRing.insert( 0, player )
+
+    RingSpawn_PrintRing()
+}
+
+void function RingSpawn_RemovePlayerFromRing( entity player ) {
+    slog("[RingSpawn_RemovePlayerFromRing] " + player.GetPlayerName())
+
+    if ( ringspawn.playerRing.contains( player ) ) {
+        ringspawn.playerRing.remove( ringspawn.playerRing.find( player ) )
+    }
+
+    RingSpawn_PrintRing()
+}
+
+array<entity> function RingSpawn_GetLivingFriendsInRing( int team ) {
+    array<entity> livingFriends = []
+    foreach ( player in ringspawn.playerRing ) {
+        if ( player.GetTeam() == team && IsAlive( player )) {
+            livingFriends.append( player )
+        }
+    }
+
+    return livingFriends
+}
+
+array<entity> function RingSpawn_GetLivingEnemiesInRing( int team ) {
+    array<entity> livingEnemies = []
+    foreach ( player in ringspawn.playerRing ) {
+        if ( player.GetTeam() != team && IsAlive( player )) {
+            livingEnemies.append( player )
+        }
+    }
+
+    return livingEnemies
+}
+
+struct SpawnpointScore
+{
+    entity spawnpoint
+    float score
+}
+
+int function SpawnpointScore_Sort( SpawnpointScore a, SpawnpointScore b )
+{
+    if (a.score > b.score) {
+        return -1
+    } else if (b.score > a.score) {
+        return 1
+    }
+
+    return 0
+}
+
+SpawnpointScore function SpawnpointScore_New(entity spawnpoint, float score) {
+    SpawnpointScore sps
+    sps.spawnpoint = spawnpoint
+    sps.score = score
+    return sps
+}
+
+array<SpawnpointScore> function RingSpawn_ScoreSpawnpointsByFriend( entity friend ) {
+    array<SpawnpointScore> spawnpointScores = []
+    foreach ( entity spawnpoint in ringspawn.spawnpoints ) {
+        float score = Distance( friend.GetOrigin() , spawnpoint.GetOrigin() )
+        spawnpointScores.append( SpawnpointScore_New( spawnpoint, score ) )
+    }
+
+    return spawnpointScores
+}
+
+array<SpawnpointScore> function RingSpawn_ScoreSpawnpointsByEnemies( entity player ) {
+    slog("[RingSpawn_FindSpawnpointsByEnemies] " + player.GetPlayerName())
+    array<SpawnpointScore> spawnpointScores = []
+    array<entity> livingEnemies = RingSpawn_GetLivingEnemiesInRing( player.GetTeam() )
+    if ( livingEnemies.len() == 0 ) {
+        foreach ( entity spawnpoint in ringspawn.spawnpoints ) {
+            float score = RandomFloat( 1.0 )
+            spawnpointScores.append( SpawnpointScore_New(spawnpoint, score) )
+        }
+        return spawnpointScores
+    }
+
+    vector avgEnemyPos = AverageOrigin(livingEnemies)
+    foreach ( entity spawnpoint in ringspawn.spawnpoints ) {
+        const preferredDist = 5000.0 // around 100 meters from avg enemy pos
+        float dist = Distance( spawnpoint.GetOrigin(), avgEnemyPos )
+        float divider = fabs( preferredDist - dist )
+        divider = divider == 0.0 ? 1.0 : divider
+        float score = preferredDist / divider
+
+        spawnpointScores.append( SpawnpointScore_New( spawnpoint, score ) )
+    }
+
+    return spawnpointScores
+}
+
+array<entity> function RingSpawn_SortSpawnpoints( entity player ) {
+    int spawnCount = ringspawn.spawnpoints.len()
+    slog("[RingSpawn_FindSpawnPoint] spawnCount = " + spawnCount)
+
+    array<SpawnpointScore> spawnpointScores = []
+
+    array<entity> livingFriends = RingSpawn_GetLivingFriendsInRing( player.GetTeam() )
+    if ( livingFriends.len() > 0 ) {
+        entity lastSpawnedFriend = livingFriends[0]
+        spawnpointScores = RingSpawn_ScoreSpawnpointsByFriend( lastSpawnedFriend )
+    } else {
+        spawnpointScores = RingSpawn_ScoreSpawnpointsByEnemies( player )
+    }
+
+    spawnpointScores.sort(SpawnpointScore_Sort)
+    array<entity> spawnpoints = []
+    foreach ( spawnpointScore in spawnpointScores ) {
+        spawnpoints.append( spawnpointScore.spawnpoint ) 
+    }
+
+    return spawnpoints
+}
+
 entity function FindSpawnPoint( entity player, bool isTitan, bool useStartSpawnpoint )
 {
     slog("-----BEGIN SPAWN DEBUG-----")
+    if ( ringspawn.enabled ) {
+        return RingSpawn_FindSpawnpoint( player )
+    }
+
 	int team = player.GetTeam()
     slog("[FindSpawnPoint] player = " + player.GetPlayerName())
     slog("[FindSpawnPoint] team = " + team)
@@ -295,9 +449,9 @@ entity function GetBestSpawnpoint( entity player, array<entity> spawnpoints )
 		}
 	}
 
-    if (!IsFFAGame()) {
-        validSpawns = SortSpawnpointsByTeamDistance(player.GetTeam(), validSpawns)
-    }
+    //if (!IsFFAGame()) {
+    //    validSpawns = SortSpawnpointsByTeamDistance(player.GetTeam(), validSpawns)
+    //}
 	
 	// last resort
 	if ( validSpawns.len() == 0 )
@@ -318,7 +472,11 @@ entity function GetBestSpawnpoint( entity player, array<entity> spawnpoints )
 
 bool function IsSpawnpointValid( entity spawnpoint, int team )
 {
-    //slog("[IsSpawnpointValid] spawnpoint = " + spawnpoint.GetOrigin() + ", team = " + team)
+    if (spawnpoint == null || !IsValid(spawnpoint)) {
+        string msg = spawnpoint == null ? "null" : "invalid"
+        slog("[IsSpawnpointValid] spawnpoint is " + msg)
+        return false
+    }
 
 	if ( !spawnpoint.HasKey( "ignoreGamemode" ) || ( spawnpoint.HasKey( "ignoreGamemode" ) && spawnpoint.kv.ignoreGamemode == "0" ) ) // used by script-spawned spawnpoints
 	{
@@ -925,7 +1083,7 @@ entity function DecideSpawnZone_CTF( array<entity> spawnzones, int team )
 }
 
 void function slog(string s) {
-    bool debug = false
+    bool debug = true
     if (debug) {
         print("[spawn.nut] " + s)
     }
